@@ -1,4 +1,4 @@
-name: Build and deploy Node.js app to Azure Web App - PDC-Ai
+name: Build and deploy Foundry Agent WebApp to Azure - PDC-Ai
 
 on:
   push:
@@ -16,22 +16,37 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Node.js version
-        uses: actions/setup-node@v3
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: '22.x'
 
-      - name: npm install and build frontend
+      - name: Build frontend
         working-directory: ./frontend
         run: |
           npm install
           npm run build
 
-      - name: Upload artifact for deployment job
+      - name: Copy frontend to backend wwwroot
+        run: |
+          rm -rf ./backend/WebApp.Api/wwwroot
+          mkdir -p ./backend/WebApp.Api/wwwroot
+          cp -r ./frontend/dist/* ./backend/WebApp.Api/wwwroot/
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Publish backend
+        run: |
+          dotnet publish ./backend/WebApp.Api/WebApp.Api.csproj -c Release -o ./publish
+
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: node-app
-          path: ./frontend/dist
+          name: dotnet-app
+          path: ./publish
 
   deploy:
     runs-on: ubuntu-latest
@@ -42,10 +57,10 @@ jobs:
       contents: read
 
     steps:
-      - name: Download artifact from build job
+      - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: node-app
+          name: dotnet-app
 
       - name: Login to Azure
         uses: azure/login@v2
