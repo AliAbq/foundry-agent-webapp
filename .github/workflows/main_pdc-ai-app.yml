@@ -23,39 +23,39 @@ jobs:
       - name: Build with dotnet
         run: dotnet build backend/WebApp.Api/WebApp.Api.csproj --configuration Release
 
-      - name: dotnet publish
-        run: dotnet publish backend/WebApp.Api/WebApp.Api.csproj -c Release -o "${{env.DOTNET_ROOT}}/myapp"
+      - name: Publish with dotnet
+        run: dotnet publish backend/WebApp.Api/WebApp.Api.csproj -c Release -o "${{ github.workspace }}/publish"
 
-      - name: Upload artifact for deployment job
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: .net-app
-          path: ${{env.DOTNET_ROOT}}/myapp
+          name: dotnet-app
+          path: ${{ github.workspace }}/publish
 
   deploy:
     runs-on: windows-latest
     needs: build
+
     permissions:
       id-token: write
       contents: read
 
     steps:
-      - name: Download artifact from build job
+      - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: .net-app
-      
+          name: dotnet-app
+          path: ./publish
+
       - name: Login to Azure
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_526D2C8C7F584A8B82640ECC53BA634E }}
-          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_FD8902B126AD4ED5A6F514049035474D }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_3C4048FCFE1041A3B1AEC76A12B5DD92 }}
+          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_36B5700EF2774602ACF59386A2E9481A }}
+          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_2CACA7B093954DD08D8FA0073470F6B1 }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_CCF3375069C543FDB2DF214EBEBCE6F2 }}
 
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
-          app-name: 'PDC-Ai-App'
-          slot-name: 'Production'
-          package: .
-          
+          app-name: PDC-Ai-App
+          package: ./publish
