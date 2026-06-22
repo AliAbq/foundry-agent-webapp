@@ -1,4 +1,4 @@
-name: Build and deploy ASP.Net Core app to Azure Web App - PDC-Ai-App
+name: Build and deploy Foundry Agent WebApp to Azure - PDC-Ai-App
 
 on:
   push:
@@ -15,27 +15,46 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+
+      - name: Build frontend
+        working-directory: ./frontend
+        run: |
+          npm install
+          npm run build
+
+      - name: Copy frontend to backend wwwroot
+        shell: pwsh
+        run: |
+          if (Test-Path "backend/WebApp.Api/wwwroot") {
+            Remove-Item "backend/WebApp.Api/wwwroot" -Recurse -Force
+          }
+          New-Item -ItemType Directory -Path "backend/WebApp.Api/wwwroot"
+          Copy-Item "frontend/dist/*" "backend/WebApp.Api/wwwroot" -Recurse -Force
+
       - name: Set up .NET Core
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
 
-      - name: Build with dotnet
+      - name: Build backend
         run: dotnet build backend/WebApp.Api/WebApp.Api.csproj --configuration Release
 
-      - name: Publish with dotnet
+      - name: Publish backend with frontend
         run: dotnet publish backend/WebApp.Api/WebApp.Api.csproj -c Release -o "${{ github.workspace }}/publish"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: dotnet-app
+          name: foundry-webapp
           path: ${{ github.workspace }}/publish
 
   deploy:
     runs-on: windows-latest
     needs: build
-
     permissions:
       id-token: write
       contents: read
@@ -44,7 +63,7 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: dotnet-app
+          name: foundry-webapp
           path: ./publish
 
       - name: Login to Azure
