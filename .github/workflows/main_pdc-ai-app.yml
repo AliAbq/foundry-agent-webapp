@@ -14,9 +14,6 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v4
 
-      # =========================
-      # Build Frontend
-      # =========================
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -29,14 +26,11 @@ jobs:
       - name: Build frontend
         working-directory: ./frontend
         env:
-          VITE_ENTRA_SPA_CLIENT_ID: ${{ secrets.VITE_ENTRA_SPA_CLIENT_ID }}
-          VITE_ENTRA_TENANT_ID: ${{ secrets.VITE_ENTRA_TENANT_ID }}
-          VITE_ENTRA_BACKEND_CLIENT_ID: ${{ secrets.VITE_ENTRA_BACKEND_CLIENT_ID }}
+          VITE_ENTRA_SPA_CLIENT_ID: ${{ vars.VITE_ENTRA_SPA_CLIENT_ID }}
+          VITE_ENTRA_TENANT_ID: ${{ vars.VITE_ENTRA_TENANT_ID }}
+          VITE_ENTRA_BACKEND_CLIENT_ID: ${{ vars.VITE_ENTRA_BACKEND_CLIENT_ID }}
         run: npm run build
 
-      # =========================
-      # Build Backend
-      # =========================
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
