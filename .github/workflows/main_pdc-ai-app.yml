@@ -23,6 +23,12 @@ jobs:
         working-directory: ./frontend
         run: npm install
 
+      - name: Debug Variables
+        run: |
+          echo "Tenant=${{ vars.VITE_ENTRA_TENANT_ID }}"
+          echo "SPA=${{ vars.VITE_ENTRA_SPA_CLIENT_ID }}"
+          echo "Backend=${{ vars.VITE_ENTRA_BACKEND_CLIENT_ID }}"
+
       - name: Build frontend
         working-directory: ./frontend
         env:
