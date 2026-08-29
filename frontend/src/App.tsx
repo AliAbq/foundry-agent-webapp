@@ -1,6 +1,10 @@
-import { AuthenticatedTemplate, UnauthenticatedTemplate, useMsalAuthentication } from "@azure/msal-react";
-import { Spinner } from '@fluentui/react-components';
-import { useAppState } from './hooks/useAppState';
+import {
+  AuthenticatedTemplate,
+  UnauthenticatedTemplate,
+  useMsalAuthentication
+} from "@azure/msal-react";
+import { Spinner } from "@fluentui/react-components";
+import { useAppState } from "./hooks/useAppState";
 import { InteractionType } from "@azure/msal-browser";
 import { ErrorBoundary } from "./components/core/ErrorBoundary";
 import { AgentChat } from "./components/AgentChat";
@@ -11,50 +15,74 @@ import type { IAgentMetadata } from "./types/chat";
 import "./App.css";
 
 function App() {
-  // This hook handles authentication automatically - redirects if not authenticated
+  // Handles authentication automatically and redirects if not authenticated
   useMsalAuthentication(InteractionType.Redirect, loginRequest);
+
   const { auth } = useAppState();
   const { getAccessToken } = useAuth();
-  const [agentMetadata, setAgentMetadata] = useState<IAgentMetadata | null>(null);
+
+  const [agentMetadata, setAgentMetadata] =
+    useState<IAgentMetadata | null>(null);
+
   const [isLoadingAgent, setIsLoadingAgent] = useState(true);
 
-  // Wrap fetchAgentMetadata in useCallback to make it stable for the effect
+  // Fetch agent metadata after authentication is complete
   const fetchAgentMetadata = useCallback(async () => {
-    if (auth.status !== 'authenticated') return;
+    // IMPORTANT:
+    // Do not leave isLoadingAgent=true while authentication is incomplete.
+    // Otherwise the application can remain permanently on
+    // "Preparing your session..."
+    if (auth.status !== "authenticated") {
+      setIsLoadingAgent(false);
+      return;
+    }
+
+    setIsLoadingAgent(true);
 
     try {
       const token = await getAccessToken();
-      const apiUrl = import.meta.env.VITE_API_URL || '/api';
-      
+
+      const apiUrl = import.meta.env.VITE_API_URL || "/api";
+
       const response = await fetch(`${apiUrl}/agent`, {
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
         }
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        throw new Error(
+          `HTTP ${response.status}: ${response.statusText}`
+        );
       }
 
       const data = await response.json();
+
       setAgentMetadata(data);
-      
+
       // Update document title with agent name
-      document.title = data.name ? `${data.name} - Azure AI Agent` : 'Azure AI Agent';
+      document.title = data.name
+        ? `${data.name} - Azure AI Agent`
+        : "Azure AI Agent";
     } catch (error) {
-      console.error('Error fetching agent metadata:', error);
-      // Fallback data keeps UI functional on error
+      console.error("Error fetching agent metadata:", error);
+
+      // Fallback data keeps the UI functional if agent metadata fails
       setAgentMetadata({
-        id: 'fallback-agent',
-        object: 'agent',
+        id: "fallback-agent",
+        object: "agent",
         createdAt: Date.now() / 1000,
-        name: 'Azure AI Agent',
-        description: 'Your intelligent conversational partner powered by Azure AI',
-        model: 'gpt-4o-mini',
-        metadata: { logo: 'Avatar_Default.svg' }
+        name: "Azure AI Agent",
+        description:
+          "Your intelligent conversational partner powered by Azure AI",
+        model: "gpt-4o-mini",
+        metadata: {
+          logo: "Avatar_Default.svg"
+        }
       });
-      document.title = 'Azure AI Agent';
+
+      document.title = "Azure AI Agent";
     } finally {
       setIsLoadingAgent(false);
     }
@@ -66,18 +94,24 @@ function App() {
 
   return (
     <ErrorBoundary>
-      {auth.status === 'initializing' || isLoadingAgent ? (
-        <div className="app-container" style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'center', 
-          height: '100vh', 
-          flexDirection: 'column', 
-          gap: '1rem' 
-        }}>
+      {auth.status === "initializing" || isLoadingAgent ? (
+        <div
+          className="app-container"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            height: "100vh",
+            flexDirection: "column",
+            gap: "1rem"
+          }}
+        >
           <Spinner size="large" />
+
           <p style={{ margin: 0 }}>
-            {auth.status === 'initializing' ? 'Preparing your session...' : 'Loading agent...'}
+            {auth.status === "initializing"
+              ? "Preparing your session..."
+              : "Loading agent..."}
           </p>
         </div>
       ) : (
@@ -85,23 +119,31 @@ function App() {
           <AuthenticatedTemplate>
             {agentMetadata && (
               <div className="app-container">
-                <AgentChat 
+                <AgentChat
                   agentId={agentMetadata.id}
                   agentName={agentMetadata.name}
-                  agentDescription={agentMetadata.description || undefined}
+                  agentDescription={
+                    agentMetadata.description || undefined
+                  }
                   agentLogo={agentMetadata.metadata?.logo}
-                  starterPrompts={agentMetadata.starterPrompts || undefined}
+                  starterPrompts={
+                    agentMetadata.starterPrompts || undefined
+                  }
                 />
               </div>
             )}
           </AuthenticatedTemplate>
+
           <UnauthenticatedTemplate>
-            <div className="app-container" style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center', 
-              height: '100vh'
-            }}>
+            <div
+              className="app-container"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                height: "100vh"
+              }}
+            >
               <p>Signing in...</p>
             </div>
           </UnauthenticatedTemplate>
