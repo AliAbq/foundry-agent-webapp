@@ -1,87 +1,189 @@
 import { useMsal } from "@azure/msal-react";
-import { InteractionRequiredAuthError } from "@azure/msal-browser";
-import { tokenRequest } from "../config/authConfig";
-import { useCallback, useMemo } from "react";
+import {
+  InteractionRequiredAuthError,
+  InteractionStatus,
+} from "@azure/msal-browser";
+
+import {
+  tokenRequest,
+  loginRequest,
+} from "../config/authConfig";
+
+import {
+  useCallback,
+  useMemo,
+} from "react";
 
 /**
  * Authentication hook for MSAL-based authentication.
- * Provides token acquisition and authentication status.
- * 
- * @returns Object with getAccessToken function, authentication status, and user info
- * 
- * @example
- * ```tsx
- * function ProtectedComponent() {
- *   const { getAccessToken, isAuthenticated, user } = useAuth();
- *   
- *   useEffect(() => {
- *     const fetchData = async () => {
- *       const token = await getAccessToken();
- *       if (token) {
- *         // Make authenticated API call
- *       }
- *     };
- *     fetchData();
- *   }, [getAccessToken]);
- *   
- *   if (!isAuthenticated) return <div>Please sign in</div>;
- *   return <div>Welcome, {user?.name}</div>;
- * }
- * ```
+ *
+ * - Attempts silent token renewal first.
+ * - Redirects to Microsoft sign-in when interaction is required.
+ * - Provides a manual signInAgain function if needed by the UI.
  */
 export const useAuth = () => {
-  const { instance, accounts } = useMsal();
+  const {
+    instance,
+    accounts,
+    inProgress,
+  } = useMsal();
 
-  const getAccessToken = useCallback(async (): Promise<string | null> => {
-    if (accounts.length === 0) {
-      return null;
+  /**
+   * Manually restart Microsoft authentication.
+   */
+  const signInAgain = useCallback(async () => {
+    if (inProgress !== InteractionStatus.None) {
+      return;
     }
-
-    const request = {
-      ...tokenRequest,
-      account: accounts[0],
-    };
 
     try {
-      // Try silent token acquisition first (uses cached token if valid)
-      const response = await instance.acquireTokenSilent(request);
-      return response.accessToken;
+      await instance.loginRedirect(loginRequest);
     } catch (error) {
-      if (error instanceof InteractionRequiredAuthError) {
-        // Fallback to interactive login if silent fails
-        console.warn(
-          "Silent token acquisition failed, prompting for interaction"
-        );
-        try {
-          const response = await instance.acquireTokenPopup(request);
-          return response.accessToken;
-        } catch (popupError) {
-          console.error("Popup login failed:", popupError);
+      console.error(
+        "Failed to restart sign-in:",
+        error
+      );
+    }
+  }, [
+    instance,
+    inProgress,
+  ]);
+
+  /**
+   * Acquire an access token.
+   *
+   * Silent renewal is attempted first.
+   * If Microsoft requires user interaction,
+   * redirect the browser to Microsoft Entra login.
+   */
+  const getAccessToken = useCallback(
+    async (): Promise<string | null> => {
+
+      /**
+       * No account exists.
+       * Start sign-in again once MSAL is idle.
+       */
+      if (accounts.length === 0) {
+        if (inProgress === InteractionStatus.None) {
+          try {
+            await instance.loginRedirect(loginRequest);
+          } catch (error) {
+            console.error(
+              "Login redirect failed:",
+              error
+            );
+          }
+        }
+
+        return null;
+      }
+
+      const account =
+        instance.getActiveAccount() ||
+        accounts[0];
+
+      const request = {
+        ...tokenRequest,
+        account,
+      };
+
+      try {
+        /**
+         * First attempt:
+         * silently obtain/renew the token.
+         */
+        const response =
+          await instance.acquireTokenSilent(
+            request
+          );
+
+        return response.accessToken;
+
+      } catch (error) {
+
+        /**
+         * Microsoft requires user interaction.
+         *
+         * Instead of returning null and leaving
+         * the application on an expired-session
+         * screen, redirect back to Microsoft login.
+         */
+        if (
+          error instanceof
+          InteractionRequiredAuthError
+        ) {
+          console.warn(
+            "Silent token acquisition requires interaction. Redirecting to sign in."
+          );
+
+          if (
+            inProgress ===
+            InteractionStatus.None
+          ) {
+            try {
+              await instance.acquireTokenRedirect(
+                request
+              );
+            } catch (redirectError) {
+              console.error(
+                "Token redirect failed:",
+                redirectError
+              );
+            }
+          }
+
           return null;
         }
-      }
-      console.error("Token acquisition error:", error);
-      return null;
-    }
-  }, [instance, accounts]);
 
-  // Memoize computed values
+        console.error(
+          "Token acquisition error:",
+          error
+        );
+
+        return null;
+      }
+    },
+    [
+      instance,
+      accounts,
+      inProgress,
+    ]
+  );
+
+  /**
+   * Authentication status
+   */
   const isAuthenticated = useMemo(
     () => accounts.length > 0,
     [accounts.length]
   );
 
+  /**
+   * Current user
+   */
   const user = useMemo(
-    () => accounts[0],
-    [accounts]
+    () =>
+      instance.getActiveAccount() ||
+      accounts[0] ||
+      null,
+    [
+      instance,
+      accounts,
+    ]
   );
 
   return useMemo(
     () => ({
       getAccessToken,
+      signInAgain,
       isAuthenticated,
       user,
     }),
-    [getAccessToken, isAuthenticated, user]
+    [
+      getAccessToken,
+      signInAgain,
+      isAuthenticated,
+      user,
+    ]
   );
 };
